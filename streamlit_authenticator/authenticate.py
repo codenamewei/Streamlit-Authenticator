@@ -21,7 +21,7 @@ class Authenticate:
     This class will create login, logout, register user, reset password, forgot password, 
     forgot username, and modify user details widgets.
     """
-    def __init__(self, cookie_name: str, key: str, cookie_expiry_days: float=30.0, 
+    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, cookie_expiry_days: float=30.0, 
         credentials: dict = None, preauthorized: list=None, validator: Validator=None):
         """
         Create a new instance of "Authenticate".
@@ -52,7 +52,7 @@ class Authenticate:
         self.key = key
         self.cookie_expiry_days = cookie_expiry_days
         self.preauthorized = preauthorized
-        self.cookie_manager = stx.CookieManager()
+        self.cookie_manager = cookie_manager
         self.validator = validator if validator is not None else Validator()
 
         if 'name' not in st.session_state:
@@ -119,8 +119,11 @@ class Authenticate:
         Checks the validity of the reauthentication cookie.
         """
         self.token = self.cookie_manager.get(self.cookie_name)
+
+
         if self.token is not None:
             self.token = self._token_decode()
+
             if self.token is not False:
                 if not st.session_state['logout']:
                     if self.token['exp_date'] > datetime.utcnow().timestamp():
@@ -128,6 +131,7 @@ class Authenticate:
                             st.session_state['name'] = self.token['name']
                             st.session_state['username'] = self.token['username']
                             st.session_state['authentication_status'] = True
+
     
     def _check_credentials(self, inplace: bool=True) -> bool:
         """
@@ -216,8 +220,6 @@ class Authenticate:
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
         
-        print("WARNING")
-        print(st.session_state)
         
         if not st.session_state['authentication_status']:
             self._check_cookie()
