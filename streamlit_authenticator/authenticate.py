@@ -9,34 +9,45 @@ from .validator import Validator
 from .utils import generate_random_pw
 
 from .exceptions import CredentialsError, ForgotError, RegisterError, ResetError, UpdateError
+import requests
+#!! BAD PRACTICE
+BACKEND_URL = "http://localhost:8000"
+
+
 
 class Authenticate:
+
     """
     This class will create login, logout, register user, reset password, forgot password, 
     forgot username, and modify user details widgets.
     """
-    def __init__(self, credentials: dict, cookie_name: str, key: str, cookie_expiry_days: float=30.0, 
-        preauthorized: list=None, validator: Validator=None):
+    def __init__(self, cookie_name: str, key: str, cookie_expiry_days: float=30.0, 
+        credentials: dict = None, preauthorized: list=None, validator: Validator=None):
         """
         Create a new instance of "Authenticate".
 
         Parameters
         ----------
-        credentials: dict
-            The dictionary of usernames, names, passwords, and emails.
         cookie_name: str
             The name of the JWT cookie stored on the client's browser for passwordless reauthentication.
         key: str
             The key to be used for hashing the signature of the JWT cookie.
         cookie_expiry_days: float
             The number of days before the cookie expires on the client's browser.
+        credentials: dict
+            The dictionary of usernames, names, passwords, and emails.
         preauthorized: list
             The list of emails of unregistered users authorized to register.
         validator: Validator
             A Validator object that checks the validity of the username, name, and email fields.
         """
-        self.credentials = credentials
-        self.credentials['usernames'] = {key.lower(): value for key, value in credentials['usernames'].items()}
+
+        if credentials:
+            self.credentials = credentials
+            self.credentials['usernames'] = {key.lower(): value for key, value in credentials['usernames'].items()}
+        else:
+            self.credentials = None
+
         self.cookie_name = cookie_name
         self.key = key
         self.cookie_expiry_days = cookie_expiry_days
@@ -132,30 +143,55 @@ class Authenticate:
         bool
             Validity of entered credentials.
         """
-        if self.username in self.credentials['usernames']:
-            try:
-                if self._check_pw():
-                    if inplace:
-                        st.session_state['name'] = self.credentials['usernames'][self.username]['name']
-                        self.exp_date = self._set_exp_date()
-                        self.token = self._token_encode()
-                        self.cookie_manager.set(self.cookie_name, self.token,
-                            expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
-                        st.session_state['authentication_status'] = True
+        if self.credentials:
+            if self.username in self.credentials['usernames']:
+                try:
+                    if self._check_pw():
+                        if inplace:
+                            st.session_state['name'] = self.credentials['usernames'][self.username]['name']
+                            self.exp_date = self._set_exp_date()
+                            self.token = self._token_encode()
+                            self.cookie_manager.set(self.cookie_name, self.token,
+                                expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                            st.session_state['authentication_status'] = True
+
+                        else:
+                            return True
                     else:
-                        return True
-                else:
-                    if inplace:
-                        st.session_state['authentication_status'] = False
-                    else:
-                        return False
-            except Exception as e:
-                print(e)
-        else:
-            if inplace:
-                st.session_state['authentication_status'] = False
+                        if inplace:
+                            st.session_state['authentication_status'] = False
+                        else:
+                            return False
+                except Exception as e:
+                    print(e)
             else:
-                return False
+                if inplace:
+                    st.session_state['authentication_status'] = False
+                else:
+                    return False
+                
+        else:
+            """validate with backend"""
+            loginurl = BACKEND_URL + "/v1/auth/session/login"
+            response = requests.post(loginurl, data = dict(username = self.username, password = self.password.encode()))
+            
+            if response.ok:
+                if inplace:
+                    st.session_state['name'] = self.username
+                    self.exp_date = self._set_exp_date()
+                    self.token = self._token_encode()
+                    self.cookie_manager.set(self.cookie_name, self.token, expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                    st.session_state['authentication_status'] = True
+                else:
+                    return True
+            
+            else:
+
+                if inplace:
+                    st.session_state['authentication_status'] = False
+                else:
+                    return False
+
 
     def login(self, form_name: str, location: str='main') -> tuple:
         """
@@ -179,6 +215,10 @@ class Authenticate:
         """
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
+        
+        print("WARNING")
+        print(st.session_state)
+        
         if not st.session_state['authentication_status']:
             self._check_cookie()
             if not st.session_state['authentication_status']:
@@ -194,6 +234,7 @@ class Authenticate:
 
                 if login_form.form_submit_button('Login'):
                     self._check_credentials()
+
 
         return st.session_state['name'], st.session_state['authentication_status'], st.session_state['username']
 
