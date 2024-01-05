@@ -17,11 +17,14 @@ BACKEND_URL = "http://localhost:8000"
 
 class Authenticate:
 
+    access_token = "access_token"
+    refresh_token = "refresh_token"
+
     """
     This class will create login, logout, register user, reset password, forgot password, 
     forgot username, and modify user details widgets.
     """
-    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, cookie_expiry_days: float=30.0, 
+    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, access_token_expiry_days: float,
         credentials: dict = None, preauthorized: list=None, validator: Validator=None):
         """
         Create a new instance of "Authenticate".
@@ -50,7 +53,7 @@ class Authenticate:
 
         self.cookie_name = cookie_name
         self.key = key
-        self.cookie_expiry_days = cookie_expiry_days
+        self.access_token_expiry_days = access_token_expiry_days
         self.preauthorized = preauthorized
         self.cookie_manager = cookie_manager
         self.validator = validator if validator is not None else Validator()
@@ -75,7 +78,7 @@ class Authenticate:
         """
         return jwt.encode({'name':st.session_state['name'],
             'username':st.session_state['username'],
-            'exp_date':self.exp_date}, self.key, algorithm='HS256')
+            'access_token_exp_date':self.access_token_exp_date}, self.key, algorithm='HS256')
 
     def _token_decode(self) -> str:
         """
@@ -90,8 +93,9 @@ class Authenticate:
             return jwt.decode(self.token, self.key, algorithms=['HS256'])
         except:
             return False
+        
 
-    def _set_exp_date(self) -> str:
+    def _set_access_token_exp_date(self) -> str:
         """
         Creates the reauthentication cookie's expiry date.
 
@@ -100,7 +104,20 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        return (datetime.utcnow() + timedelta(days=self.cookie_expiry_days)).timestamp()
+        return (datetime.utcnow() + timedelta(days=self.access_token_expiry_days)).timestamp()
+    
+
+    def _set_refresh_token_exp_date(self) -> str:
+        """
+        Creates the reauthentication cookie's expiry date.
+
+        Returns
+        -------
+        str
+            The JWT cookie's expiry timestamp in Unix epoch.
+        """
+        return (datetime.utcnow() + timedelta(days=self.refresh_token_expiry_days)).timestamp()
+
 
     def _check_pw(self) -> bool:
         """
@@ -126,7 +143,7 @@ class Authenticate:
 
             if self.token is not False:
                 if not st.session_state['logout']:
-                    if self.token['exp_date'] > datetime.utcnow().timestamp():
+                    if self.token['access_token_exp_date'] > datetime.utcnow().timestamp():
                         if 'name' and 'username' in self.token:
                             st.session_state['name'] = self.token['name']
                             st.session_state['username'] = self.token['username']
@@ -153,8 +170,8 @@ class Authenticate:
                     if self._check_pw():
                         if inplace:
                             st.session_state['name'] = self.credentials['usernames'][self.username]['name']
-                            self.exp_date = self._set_exp_date()
-                            self.token = self._token_encode()
+                            #self.access_token_exp_date = self._set_access_token_exp_date()
+                            #self.token = self._token_encode()
                             self.cookie_manager.set(self.cookie_name, self.token,
                                 expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
                             st.session_state['authentication_status'] = True
@@ -182,9 +199,14 @@ class Authenticate:
             if response.ok:
                 if inplace:
                     st.session_state['name'] = self.username
-                    self.exp_date = self._set_exp_date()
-                    self.token = self._token_encode()
-                    self.cookie_manager.set(self.cookie_name, self.token, expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                    #self.access_token_exp_date = self._set_access_token_exp_date()
+                    #self.refresh_token_exp_date = self._set_refresh_token_exp_date()
+                    #self.token = self._token_encode()
+
+                    responsebody = response.json()
+                    
+                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], expires_at=datetime.now() + timedelta(days=self.access_token_expiry_days))
+
                     st.session_state['authentication_status'] = True
                 else:
                     return True
@@ -572,7 +594,7 @@ class Authenticate:
                     self._update_entry(self.username, field, new_value)
                     if field == 'name':
                             st.session_state['name'] = new_value
-                            self.exp_date = self._set_exp_date()
+                            self.access_token_exp_date = self._set_access_token_exp_date()
                             self.token = self._token_encode()
                             self.cookie_manager.set(self.cookie_name, self.token,
                             expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
