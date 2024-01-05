@@ -19,81 +19,26 @@ class Authenticate:
 
     access_token = "access_token"
     refresh_token = "refresh_token"
+    access_token_expired_at = access_token + "_expired_at"
+    refresh_token_expired_at = refresh_token + "_expired_at"
 
     """
     This class will create login, logout, register user, reset password, forgot password, 
     forgot username, and modify user details widgets.
     """
-    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, cookie_name_expiry_hours: float,
-        credentials: dict = None, preauthorized: list=None, validator: Validator=None):
+    def __init__(self, cookie_manager : stx.CookieManager, access_token_expiry_hours: float, refresh_token_expiry_hours: float = None):
         """
         Create a new instance of "Authenticate".
 
-        Parameters
-        ----------
-        cookie_name: str
-            The name of the JWT cookie stored on the client's browser for passwordless reauthentication.
-        key: str
-            The key to be used for hashing the signature of the JWT cookie.
-        cookie_expiry_days: float
-            The number of days before the cookie expires on the client's browser.
-        credentials: dict
-            The dictionary of usernames, names, passwords, and emails.
-        preauthorized: list
-            The list of emails of unregistered users authorized to register.
-        validator: Validator
-            A Validator object that checks the validity of the username, name, and email fields.
         """
-
-        if credentials:
-            self.credentials = credentials
-            self.credentials['usernames'] = {key.lower(): value for key, value in credentials['usernames'].items()}
-        else:
-            self.credentials = None
-
-        self.cookie_name = cookie_name
-        self.key = key
-        self.cookie_name_expiry_hours = cookie_name_expiry_hours
-        self.preauthorized = preauthorized
         self.cookie_manager = cookie_manager
-        self.validator = validator if validator is not None else Validator()
-
-        if 'name' not in st.session_state:
-            st.session_state['name'] = None
+        self.access_token_expiry_hours = access_token_expiry_hours
+        self.refresh_token_expiry_hours = refresh_token_expiry_hours
+        
         if 'authentication_status' not in st.session_state:
             st.session_state['authentication_status'] = None
         if 'username' not in st.session_state:
             st.session_state['username'] = None
-        if 'logout' not in st.session_state:
-            st.session_state['logout'] = None
-
-    def _token_encode(self) -> str:
-        """
-        Encodes the contents of the reauthentication cookie.
-
-        Returns
-        -------
-        str
-            The JWT cookie for passwordless reauthentication.
-        """
-        return jwt.encode({'name':st.session_state['name'],
-            'username':st.session_state['username'],
-            'access_token_exp_date':self.access_token_exp_date}, self.key, algorithm='HS256')
-
-    def _token_decode(self) -> str:
-        """
-        Decodes the contents of the reauthentication cookie.
-
-        Returns
-        -------
-        str
-            The decoded JWT cookie for passwordless reauthentication.
-        """
-        try:
-            return jwt.decode(self.token, self.key, algorithms=['HS256'])
-        except:
-            return False
-        
 
     def _set_access_token_exp_date(self) -> str:
         """
@@ -104,9 +49,9 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        return (datetime.utcnow() + timedelta(days=self.cookie_name_expiry_hours)).timestamp()
+        #FIX THIS to HOURS 
+        return datetime.now() + timedelta(minutes=self.access_token_expiry_hours)
     
-
     def _set_refresh_token_exp_date(self) -> str:
         """
         Creates the reauthentication cookie's expiry date.
@@ -116,40 +61,24 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        return (datetime.utcnow() + timedelta(days=self.cookie_name_expiry_hours)).timestamp()
+        #FIX THIS to HOURS 
+        return datetime.now() + timedelta(minutes=self.refresh_token_expiry_hours)
 
-
-    def _check_pw(self) -> bool:
-        """
-        Checks the validity of the entered password.
-
-        Returns
-        -------
-        bool
-            The validity of the entered password by comparing it to the hashed password on disk.
-        """
-        return bcrypt.checkpw(self.password.encode(), 
-            self.credentials['usernames'][self.username]['password'].encode())
-
-    def _check_cookie(self):
+    def _check_cookie(self) -> bool:
         """
         Checks the validity of the reauthentication cookie.
         """
-        self.token = self.cookie_manager.get(self.cookie_name)
 
+        if self.cookie_manager.get(self.access_token):
 
-        if self.token is not None:
-            self.token = self._token_decode()
+            st.session_state['username'] = self.cookie_manager.get("username")
+            st.session_state['authentication_status'] = True
 
-            if self.token is not False:
-                if not st.session_state['logout']:
-                    if self.token['access_token_exp_date'] > datetime.utcnow().timestamp():
-                        if 'name' and 'username' in self.token:
-                            st.session_state['name'] = self.token['name']
-                            st.session_state['username'] = self.token['username']
-                            st.session_state['authentication_status'] = True
+            return True
+        else:
+            return False
 
-    
+ 
     def _check_credentials(self, inplace: bool=True) -> bool:
         """
         Checks the validity of the entered credentials.
@@ -164,69 +93,36 @@ class Authenticate:
         bool
             Validity of entered credentials.
         """
-        if self.credentials:
-            if self.username in self.credentials['usernames']:
-                try:
-                    if self._check_pw():
-                        if inplace:
-                            st.session_state['name'] = self.credentials['usernames'][self.username]['name']
-                            #self.access_token_exp_date = self._set_access_token_exp_date()
-                            #self.token = self._token_encode()
-                            self.cookie_manager.set(self.cookie_name, self.token,
-                                expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
-                            st.session_state['authentication_status'] = True
-
-                        else:
-                            return True
-                    else:
-                        if inplace:
-                            st.session_state['authentication_status'] = False
-                        else:
-                            return False
-                except Exception as e:
-                    print(e)
-            else:
-                if inplace:
-                    st.session_state['authentication_status'] = False
-                else:
-                    return False
+        """validate with backend"""
+        loginurl = BACKEND_URL + "/v1/auth/session/login"
+        response = requests.post(loginurl, data = dict(username = self.username, password = self.password.encode()))
+        
+        if response.ok:
+            if inplace:
+                st.session_state['username'] = self.username
+                responsebody = response.json()
                 
-        else:
-            """validate with backend"""
-            loginurl = BACKEND_URL + "/v1/auth/session/login"
-            response = requests.post(loginurl, data = dict(username = self.username, password = self.password.encode()))
-            
-            if response.ok:
-                if inplace:
-                    st.session_state['name'] = self.username
-                    #self.access_token_exp_date = self._set_access_token_exp_date()
-                    #self.refresh_token_exp_date = self._set_refresh_token_exp_date()
-                    #self.token = self._token_encode()
+                access_token_exp_date = self._set_access_token_exp_date()
+                self.cookie_manager.set(cookie = self.access_token, val = responsebody[self.access_token], expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
+                
+                refresh_token_exp_date = self._set_refresh_token_exp_date()
+                self.cookie_manager.set(self.refresh_token, responsebody[self.refresh_token], key = self.refresh_token, expires_at=refresh_token_exp_date)
 
-                    responsebody = response.json()
-                    
-                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], key = self.access_token, expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
-                    self.cookie_manager.set(self.access_token + "_expired_at", responsebody[self.refresh_token],  key = self.access_token + "_expired_at", expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
-                    st.session_state['authentication_status'] = True
-                else:
-                    return True
-            
+
+                st.session_state['authentication_status'] = True
             else:
+                return True
+        
+        else:
 
-                if inplace:
-                    st.session_state['authentication_status'] = False
-                else:
-                    return False
-
+            if inplace:
+                st.session_state['authentication_status'] = False
+            else:
+                return False
+        
     def get_access_token(self) -> str | None:
-        if self.cookie_manager.get(self.access_token) is not None:
-            print("DELETE")
-            self.cookie_manager.delete(self.access_token, key = self.access_token)
-            self.cookie_manager.delete(self.access_token + "_expired_at", key = self.access_token + "_expired_at")
-
-        # if self._check_cookie():
-
-        #     return self.cookie_manager.get(self.access_token)
+        
+        return self.cookie_manager.get(self.access_token)
 
     def login(self, form_name: str, location: str='main') -> tuple:
         """
@@ -269,7 +165,7 @@ class Authenticate:
                     self._check_credentials()
 
 
-        return st.session_state['name'], st.session_state['authentication_status'], st.session_state['username']
+        return st.session_state['username'], st.session_state['authentication_status']
 
     def logout(self, button_name: str, location: str='main', key: str=None):
         """
@@ -286,16 +182,14 @@ class Authenticate:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
         if location == 'main':
             if st.button(button_name, key):
-                self.cookie_manager.delete(self.cookie_name)
+                self.cookie_manager.delete(self.access_token)
                 st.session_state['logout'] = True
-                st.session_state['name'] = None
                 st.session_state['username'] = None
                 st.session_state['authentication_status'] = None
         elif location == 'sidebar':
             if st.sidebar.button(button_name, key):
-                self.cookie_manager.delete(self.cookie_name)
+                self.cookie_manager.delete(self.access_token)
                 st.session_state['logout'] = True
-                st.session_state['name'] = None
                 st.session_state['username'] = None
                 st.session_state['authentication_status'] = None
 
