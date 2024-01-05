@@ -24,7 +24,7 @@ class Authenticate:
     This class will create login, logout, register user, reset password, forgot password, 
     forgot username, and modify user details widgets.
     """
-    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, access_token_expiry_days: float,
+    def __init__(self, cookie_name: str, cookie_manager : stx.CookieManager, key: str, cookie_name_expiry_hours: float,
         credentials: dict = None, preauthorized: list=None, validator: Validator=None):
         """
         Create a new instance of "Authenticate".
@@ -53,7 +53,7 @@ class Authenticate:
 
         self.cookie_name = cookie_name
         self.key = key
-        self.access_token_expiry_days = access_token_expiry_days
+        self.cookie_name_expiry_hours = cookie_name_expiry_hours
         self.preauthorized = preauthorized
         self.cookie_manager = cookie_manager
         self.validator = validator if validator is not None else Validator()
@@ -104,7 +104,7 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        return (datetime.utcnow() + timedelta(days=self.access_token_expiry_days)).timestamp()
+        return (datetime.utcnow() + timedelta(days=self.cookie_name_expiry_hours)).timestamp()
     
 
     def _set_refresh_token_exp_date(self) -> str:
@@ -116,7 +116,7 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        return (datetime.utcnow() + timedelta(days=self.refresh_token_expiry_days)).timestamp()
+        return (datetime.utcnow() + timedelta(days=self.cookie_name_expiry_hours)).timestamp()
 
 
     def _check_pw(self) -> bool:
@@ -205,7 +205,7 @@ class Authenticate:
 
                     responsebody = response.json()
                     
-                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], expires_at=datetime.now() + timedelta(days=self.access_token_expiry_days))
+                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
 
                     st.session_state['authentication_status'] = True
                 else:
@@ -218,6 +218,16 @@ class Authenticate:
                 else:
                     return False
 
+    def get_access_token(self) -> str | None:
+
+        print(self.cookie_manager.get(self.access_token))
+        if self.cookie_manager.get(self.access_token) is not None:
+            print("DELETE")
+            self.cookie_manager.delete(self.access_token)
+
+        # if self._check_cookie():
+
+        #     return self.cookie_manager.get(self.access_token)
 
     def login(self, form_name: str, location: str='main') -> tuple:
         """
@@ -597,7 +607,7 @@ class Authenticate:
                             self.access_token_exp_date = self._set_access_token_exp_date()
                             self.token = self._token_encode()
                             self.cookie_manager.set(self.cookie_name, self.token,
-                            expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                            expires_at=datetime.now() + timedelta(days=self.cookie_name_expiry_hours))
                     return True
                 else:
                     raise UpdateError('New and current values are the same')
