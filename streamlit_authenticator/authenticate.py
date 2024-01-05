@@ -205,8 +205,8 @@ class Authenticate:
 
                     responsebody = response.json()
                     
-                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
-
+                    self.cookie_manager.set(self.access_token, responsebody[self.access_token], key = self.access_token, expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
+                    self.cookie_manager.set(self.access_token + "_expired_at", responsebody[self.refresh_token],  key = self.access_token + "_expired_at", expires_at=datetime.now() + timedelta(minutes=self.cookie_name_expiry_hours))
                     st.session_state['authentication_status'] = True
                 else:
                     return True
@@ -219,11 +219,10 @@ class Authenticate:
                     return False
 
     def get_access_token(self) -> str | None:
-
-        print(self.cookie_manager.get(self.access_token))
         if self.cookie_manager.get(self.access_token) is not None:
             print("DELETE")
-            self.cookie_manager.delete(self.access_token)
+            self.cookie_manager.delete(self.access_token, key = self.access_token)
+            self.cookie_manager.delete(self.access_token + "_expired_at", key = self.access_token + "_expired_at")
 
         # if self._check_cookie():
 
