@@ -19,7 +19,8 @@ class Authenticate:
 
     access_token = "access_token"
     refresh_token = "refresh_token"
-    username_token = "USERNAME"
+    username_token = "LOGGEDIN_USERNAME"
+    authentication_status = "AUTHENTICATION_STATUS"
 
     """
     This class will create login, logout, register user, reset password, forgot password, 
@@ -64,13 +65,11 @@ class Authenticate:
         """
 
         if self.cookie_manager.get(self.access_token):
-            st.session_state['USERNAME'] = self.cookie_manager.get(self.username_token)
-            st.session_state['AUTHENTICATION_STATUS'] = True
+            st.session_state[self.authentication_status] = True
 
             return True
         else:
-            st.session_state['AUTHENTICATION_STATUS'] = False
-            st.session_state['USERNAME'] = None
+            st.session_state[self.authentication_status] = None
             return False
 
  
@@ -105,16 +104,21 @@ class Authenticate:
                 self.cookie_manager.set(self.refresh_token, responsebody[self.refresh_token], key = self.refresh_token, expires_at=refresh_token_exp_date)
 
                 self.cookie_manager.set(cookie = self.username_token, key = self.username_token, val = self.username, expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
-                st.session_state[self.username_token] = self.username
 
-                st.session_state['AUTHENTICATION_STATUS'] = True
+                st.session_state[self.authentication_status] = True
+
+                
             else:
                 return True
         
         else:
 
+            st.warning('Username/password is incorrect. Failed to login.', icon='⚠️')
+
             if inplace:
-                st.session_state['AUTHENTICATION_STATUS'] = False
+
+                
+                st.session_state[self.authentication_status] = False
             else:
                 return False
         
@@ -148,24 +152,29 @@ class Authenticate:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
         
         
-        if not st.session_state['AUTHENTICATION_STATUS']:
+        if not st.session_state[self.authentication_status]:
             self._check_cookie()
-            if not st.session_state['AUTHENTICATION_STATUS']:
+            if not st.session_state[self.authentication_status]:
                 if location == 'main':
                     login_form = st.form('Login')
                 elif location == 'sidebar':
                     login_form = st.sidebar.form('Login')
 
                 login_form.subheader(form_name)
-                self.username = login_form.text_input('Username').lower()
-                st.session_state['USERNAME'] = self.username
+                self.username = login_form.text_input("Username").lower()
                 self.password = login_form.text_input('Password', type='password')
 
                 if login_form.form_submit_button('Login'):
-                    self._check_credentials()
+
+                    if not self.username or not self.password:
+
+                        st.warning('Username and password cannot be left empty', icon='⚠️')
+
+                    else:
+                        self._check_credentials()
 
 
-        return st.session_state['USERNAME'], st.session_state['AUTHENTICATION_STATUS']
+        return self.cookie_manager.get(self.username_token), st.session_state[self.authentication_status]
 
 
     # def logout(self, button_name: str, location: str='main', key: str=None):
@@ -195,9 +204,9 @@ class Authenticate:
     #             st.session_state['AUTHENTICATION_STATUS'] = None
 
     def logout(self):
-        st.session_state['USERNAME'] = None
-        st.session_state['AUTHENTICATION_STATUS'] = False
+        st.session_state[self.authentication_status] = None
         
+        self.cookie_manager.set(cookie = self.username_token, key = self.username_token, val = None)
         self.cookie_manager.delete(self.access_token)
         #self.cookie_manager.delete(self.refresh_token)
         
