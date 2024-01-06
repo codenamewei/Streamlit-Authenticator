@@ -19,8 +19,7 @@ class Authenticate:
 
     access_token = "access_token"
     refresh_token = "refresh_token"
-    access_token_expired_at = access_token + "_expired_at"
-    refresh_token_expired_at = refresh_token + "_expired_at"
+    username_token = "USERNAME"
 
     """
     This class will create login, logout, register user, reset password, forgot password, 
@@ -35,10 +34,7 @@ class Authenticate:
         self.access_token_expiry_hours = access_token_expiry_hours
         self.refresh_token_expiry_hours = refresh_token_expiry_hours
         
-        if 'authentication_status' not in st.session_state:
-            st.session_state['authentication_status'] = None
-        if 'username' not in st.session_state:
-            st.session_state['username'] = None
+        self._check_cookie()
 
     def _set_access_token_exp_date(self) -> str:
         """
@@ -49,8 +45,7 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        #FIX THIS to HOURS 
-        return datetime.now() + timedelta(minutes=self.access_token_expiry_hours)
+        return datetime.now() + timedelta(hours=self.access_token_expiry_hours)
     
     def _set_refresh_token_exp_date(self) -> str:
         """
@@ -61,8 +56,7 @@ class Authenticate:
         str
             The JWT cookie's expiry timestamp in Unix epoch.
         """
-        #FIX THIS to HOURS 
-        return datetime.now() + timedelta(minutes=self.refresh_token_expiry_hours)
+        return datetime.now() + timedelta(hours=self.refresh_token_expiry_hours)
 
     def _check_cookie(self) -> bool:
         """
@@ -70,12 +64,13 @@ class Authenticate:
         """
 
         if self.cookie_manager.get(self.access_token):
-
-            st.session_state['username'] = self.cookie_manager.get("username")
-            st.session_state['authentication_status'] = True
+            st.session_state['USERNAME'] = self.cookie_manager.get(self.username_token)
+            st.session_state['AUTHENTICATION_STATUS'] = True
 
             return True
         else:
+            st.session_state['AUTHENTICATION_STATUS'] = False
+            st.session_state['USERNAME'] = None
             return False
 
  
@@ -99,7 +94,8 @@ class Authenticate:
         
         if response.ok:
             if inplace:
-                st.session_state['username'] = self.username
+                
+                
                 responsebody = response.json()
                 
                 access_token_exp_date = self._set_access_token_exp_date()
@@ -108,19 +104,23 @@ class Authenticate:
                 refresh_token_exp_date = self._set_refresh_token_exp_date()
                 self.cookie_manager.set(self.refresh_token, responsebody[self.refresh_token], key = self.refresh_token, expires_at=refresh_token_exp_date)
 
+                self.cookie_manager.set(cookie = self.username_token, key = self.username_token, val = self.username, expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
+                st.session_state[self.username_token] = self.username
 
-                st.session_state['authentication_status'] = True
+                st.session_state['AUTHENTICATION_STATUS'] = True
             else:
                 return True
         
         else:
 
             if inplace:
-                st.session_state['authentication_status'] = False
+                st.session_state['AUTHENTICATION_STATUS'] = False
             else:
                 return False
         
     def get_access_token(self) -> str | None:
+
+        self._check_cookie()
         
         return self.cookie_manager.get(self.access_token)
 
@@ -148,9 +148,9 @@ class Authenticate:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
         
         
-        if not st.session_state['authentication_status']:
+        if not st.session_state['AUTHENTICATION_STATUS']:
             self._check_cookie()
-            if not st.session_state['authentication_status']:
+            if not st.session_state['AUTHENTICATION_STATUS']:
                 if location == 'main':
                     login_form = st.form('Login')
                 elif location == 'sidebar':
@@ -158,40 +158,49 @@ class Authenticate:
 
                 login_form.subheader(form_name)
                 self.username = login_form.text_input('Username').lower()
-                st.session_state['username'] = self.username
+                st.session_state['USERNAME'] = self.username
                 self.password = login_form.text_input('Password', type='password')
 
                 if login_form.form_submit_button('Login'):
                     self._check_credentials()
 
 
-        return st.session_state['username'], st.session_state['authentication_status']
+        return st.session_state['USERNAME'], st.session_state['AUTHENTICATION_STATUS']
 
-    def logout(self, button_name: str, location: str='main', key: str=None):
-        """
-        Creates a logout button.
 
-        Parameters
-        ----------
-        button_name: str
-            The rendered name of the logout button.
-        location: str
-            The location of the logout button i.e. main or sidebar.
-        """
-        if location not in ['main', 'sidebar']:
-            raise ValueError("Location must be one of 'main' or 'sidebar'")
-        if location == 'main':
-            if st.button(button_name, key):
-                self.cookie_manager.delete(self.access_token)
-                st.session_state['logout'] = True
-                st.session_state['username'] = None
-                st.session_state['authentication_status'] = None
-        elif location == 'sidebar':
-            if st.sidebar.button(button_name, key):
-                self.cookie_manager.delete(self.access_token)
-                st.session_state['logout'] = True
-                st.session_state['username'] = None
-                st.session_state['authentication_status'] = None
+    # def logout(self, button_name: str, location: str='main', key: str=None):
+    #     """
+    #     Creates a logout button.
+
+    #     Parameters
+    #     ----------
+    #     button_name: str
+    #         The rendered name of the logout button.
+    #     location: str
+    #         The location of the logout button i.e. main or sidebar.
+    #     """
+    #     if location not in ['main', 'sidebar']:
+    #         raise ValueError("Location must be one of 'main' or 'sidebar'")
+    #     if location == 'main':
+    #         if st.button(button_name, key):
+    #             self.cookie_manager.delete(self.access_token)
+    #             st.session_state['logout'] = True
+    #             st.session_state['USERNAME'] = None
+    #             st.session_state['AUTHENTICATION_STATUS'] = None
+    #     elif location == 'sidebar':
+    #         if st.sidebar.button(button_name, key):
+    #             self.cookie_manager.delete(self.access_token)
+    #             st.session_state['logout'] = True
+    #             st.session_state['USERNAME'] = None
+    #             st.session_state['AUTHENTICATION_STATUS'] = None
+
+    def logout(self):
+        st.session_state['USERNAME'] = None
+        st.session_state['AUTHENTICATION_STATUS'] = False
+        
+        self.cookie_manager.delete(self.access_token)
+        #self.cookie_manager.delete(self.refresh_token)
+        
 
     def _update_password(self, username: str, password: str):
         """
@@ -312,7 +321,7 @@ class Authenticate:
 
         register_user_form.subheader(form_name)
         new_email = register_user_form.text_input('Email')
-        new_username = register_user_form.text_input('Username').lower()
+        new_username = register_user_form.text_input('USERNAME').lower()
         new_name = register_user_form.text_input('Name')
         new_password = register_user_form.text_input('Password', type='password')
         new_password_repeat = register_user_form.text_input('Repeat password', type='password')
@@ -381,7 +390,7 @@ class Authenticate:
             forgot_password_form = st.sidebar.form('Forgot password')
 
         forgot_password_form.subheader(form_name)
-        username = forgot_password_form.text_input('Username').lower()
+        username = forgot_password_form.text_input('USERNAME').lower()
 
         if forgot_password_form.form_submit_button('Submit'):
             if len(username) > 0:
