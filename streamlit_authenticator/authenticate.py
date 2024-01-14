@@ -34,6 +34,8 @@ class Authenticate:
         self.cookie_manager = cookie_manager
         self.access_token_expiry_hours = access_token_expiry_hours
         self.refresh_token_expiry_hours = refresh_token_expiry_hours
+
+        st.session_state[self.authentication_status] = False
         
         self._check_cookie()
 
@@ -98,7 +100,8 @@ class Authenticate:
                 responsebody = response.json()
                 
                 access_token_exp_date = self._set_access_token_exp_date()
-                self.cookie_manager.set(cookie = self.access_token, val = responsebody[self.access_token], expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
+
+                self.cookie_manager.set(cookie = self.access_token, val = responsebody[self.access_token], expires_at=access_token_exp_date)
                 
                 refresh_token_exp_date = self._set_refresh_token_exp_date()
                 self.cookie_manager.set(self.refresh_token, responsebody[self.refresh_token], key = self.refresh_token, expires_at=refresh_token_exp_date)
@@ -106,6 +109,8 @@ class Authenticate:
                 self.cookie_manager.set(cookie = self.username_token, key = self.username_token, val = self.username, expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
 
                 st.session_state[self.authentication_status] = True
+
+                
 
                 
             else:
