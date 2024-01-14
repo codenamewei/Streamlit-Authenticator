@@ -67,6 +67,7 @@ class Authenticate:
         """
 
         if self.cookie_manager.get(self.access_token):
+
             st.session_state[self.authentication_status] = True
 
             return True
@@ -104,6 +105,7 @@ class Authenticate:
                 self.cookie_manager.set(cookie = self.access_token, val = responsebody[self.access_token], expires_at=access_token_exp_date)
                 
                 refresh_token_exp_date = self._set_refresh_token_exp_date()
+                
                 self.cookie_manager.set(self.refresh_token, responsebody[self.refresh_token], key = self.refresh_token, expires_at=refresh_token_exp_date)
 
                 self.cookie_manager.set(cookie = self.username_token, key = self.username_token, val = self.username, expires_at=access_token_exp_date)#, key = self.access_token,  expires_at=access_token_exp_date)
@@ -132,6 +134,12 @@ class Authenticate:
         self._check_cookie()
         
         return self.cookie_manager.get(self.access_token)
+    
+    def get_username(self) -> str | None:
+
+        self._check_cookie()
+        
+        return self.cookie_manager.get(self.username_token)
 
     def login(self, form_name: str, location: str='main') -> tuple:
         """
