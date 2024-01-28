@@ -184,7 +184,9 @@ class Authenticate:
                         st.warning('Username and password cannot be left empty', icon='⚠️')
 
                     else:
-                        self._check_credentials()
+                        with st.spinner('Logging in...'):
+                            
+                            self._check_credentials()
 
 
         return self.cookie_manager.get(self.username_token), st.session_state[self.authentication_status]
