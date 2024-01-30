@@ -50,3 +50,28 @@ class Validator:
             Validity of entered email.
         """
         return "@" in email and 2 < len(email) < 320
+
+    def validate_password(self, password: str) -> bool:
+        """
+        Checks the validity of the entered email.
+
+        Parameters
+        ----------
+        email: str
+            The email to be validated.
+        Returns
+        -------
+        bool
+            Validity of entered email.
+        """
+
+        if not 8 < len(password) < 50:
+
+            return False
+        
+        if not re.search('[A-Z]', password) or not re.search('[a-z]', password) or not re.search('[?,$#@%!]',password) or not re.search('[1234567890]', password):
+
+            return False
+        
+
+        return True
