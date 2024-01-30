@@ -176,8 +176,9 @@ class Authenticate:
                     login_form = st.sidebar.form('Login')
 
                 login_form.subheader(form_name)
-                self.username = login_form.text_input("Username").lower()
+                self.username = login_form.text_input("User Name").lower()
                 self.password = login_form.text_input('Password', type='password')
+
 
                 if login_form.form_submit_button('Login'):
 
@@ -189,6 +190,17 @@ class Authenticate:
                         with st.spinner('Logging in...'):
                             
                             self._check_credentials()
+                
+                login_form.caption("By continuing, you agree to our [User Agreement]() and acknowledge that you understand the [Privacy Policy]().")
+
+                if st.button("Forgot your credential?"):
+
+                    pass
+  
+                if st.button("New to Face Guardian? Sign Up"):
+
+                    st.session_state['sign_up'] = True
+                    st.rerun()
 
 
         return self.cookie_manager.get(self.username_token), st.session_state[self.authentication_status]
@@ -312,8 +324,7 @@ class Authenticate:
         if not self.validator.validate_password(password):
             raise RegisterError('Password should be longer than length of 8, contains an uppercase, a lowercase, a digit and a special characters of choice ?,$#@%!')
 
-        #TODO check if username in db
-
+        
         print(f"username: {username}")
         print(f"password: {password}")
         print(f"email: {email}")
@@ -357,6 +368,7 @@ class Authenticate:
             if len(new_email) and len(new_username) and len(new_password) > 0:
 
                 if True:#new_username not in self.credentials['usernames']:
+                    #TODO check if username in db
 
                     if new_password == new_password_repeat:
                         self._register_credentials(new_username, new_password, new_email)#, preauthorization)
@@ -367,6 +379,12 @@ class Authenticate:
                     raise RegisterError('Username already taken')
             else:
                 raise RegisterError('Please enter an email, username, name, and password')
+  
+        if st.button("Sign In"):
+
+            st.session_state['sign_up'] = False
+            st.rerun()
+
 
     def _set_random_password(self, username: str) -> str:
         """
